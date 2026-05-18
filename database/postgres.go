@@ -581,6 +581,7 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_api_keys_expires_at ON api_keys(expires_at);
 
 	ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS allowed_group_ids JSONB DEFAULT '[]'::jsonb;
+	ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS auto_inject_image_tool BOOLEAN NOT NULL DEFAULT TRUE;
 
 			CREATE TABLE IF NOT EXISTS system_settings (
 				id                 INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
@@ -801,37 +802,41 @@ func (db *DB) migrate(ctx context.Context) error {
 
 // APIKeyRow API 密钥行
 type APIKeyRow struct {
-	ID              int64        `json:"id"`
-	Name            string       `json:"name"`
-	Key             string       `json:"key"`
-	QuotaLimit      float64      `json:"quota_limit"`
-	QuotaUsed       float64      `json:"quota_used"`
-	ExpiresAt       sql.NullTime `json:"expires_at"`
-	AllowedGroupIDs []int64      `json:"allowed_group_ids"`
-	CreatedAt       time.Time    `json:"created_at"`
+	ID                  int64        `json:"id"`
+	Name                string       `json:"name"`
+	Key                 string       `json:"key"`
+	QuotaLimit          float64      `json:"quota_limit"`
+	QuotaUsed           float64      `json:"quota_used"`
+	ExpiresAt           sql.NullTime `json:"expires_at"`
+	AllowedGroupIDs     []int64      `json:"allowed_group_ids"`
+	AutoInjectImageTool bool         `json:"auto_inject_image_tool"`
+	CreatedAt           time.Time    `json:"created_at"`
 }
 
 type APIKeyInput struct {
-	Name            string
-	Key             string
-	QuotaLimit      float64
-	QuotaUsed       float64
-	ExpiresAt       sql.NullTime
-	AllowedGroupIDs []int64
+	Name                string
+	Key                 string
+	QuotaLimit          float64
+	QuotaUsed           float64
+	ExpiresAt           sql.NullTime
+	AllowedGroupIDs     []int64
+	AutoInjectImageTool bool
 }
 
 type APIKeyUpdate struct {
-	Name               string
-	NameSet            bool
-	QuotaLimit         float64
-	QuotaLimitSet      bool
-	ExpiresAt          sql.NullTime
-	ExpiresAtSet       bool
-	AllowedGroupIDs    []int64
-	AllowedGroupIDsSet bool
+	Name                   string
+	NameSet                bool
+	QuotaLimit             float64
+	QuotaLimitSet          bool
+	ExpiresAt              sql.NullTime
+	ExpiresAtSet           bool
+	AllowedGroupIDs        []int64
+	AllowedGroupIDsSet     bool
+	AutoInjectImageTool    bool
+	AutoInjectImageToolSet bool
 }
 
-const apiKeySelectColumns = `id, name, key, created_at, COALESCE(quota_limit, 0), COALESCE(quota_used, 0), expires_at, COALESCE(allowed_group_ids, '[]')`
+const apiKeySelectColumns = `id, name, key, created_at, COALESCE(quota_limit, 0), COALESCE(quota_used, 0), expires_at, COALESCE(allowed_group_ids, '[]'), auto_inject_image_tool`
 
 // ListAPIKeys 获取所有 API 密钥
 func (db *DB) ListAPIKeys(ctx context.Context) ([]*APIKeyRow, error) {
@@ -887,9 +892,9 @@ func (db *DB) InsertAPIKeyWithOptions(ctx context.Context, input APIKeyInput) (i
 		input.QuotaUsed = 0
 	}
 	return db.insertRowID(ctx,
-		`INSERT INTO api_keys (name, key, quota_limit, quota_used, expires_at, allowed_group_ids) VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING id`,
-		`INSERT INTO api_keys (name, key, quota_limit, quota_used, expires_at, allowed_group_ids) VALUES ($1, $2, $3, $4, $5, $6)`,
-		input.Name, input.Key, input.QuotaLimit, input.QuotaUsed, nullableTimeArg(input.ExpiresAt), encodeInt64SliceJSON(input.AllowedGroupIDs),
+		`INSERT INTO api_keys (name, key, quota_limit, quota_used, expires_at, allowed_group_ids, auto_inject_image_tool) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) RETURNING id`,
+		`INSERT INTO api_keys (name, key, quota_limit, quota_used, expires_at, allowed_group_ids, auto_inject_image_tool) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		input.Name, input.Key, input.QuotaLimit, input.QuotaUsed, nullableTimeArg(input.ExpiresAt), encodeInt64SliceJSON(input.AllowedGroupIDs), input.AutoInjectImageTool,
 	)
 }
 
@@ -1031,6 +1036,9 @@ func (db *DB) UpdateAPIKey(ctx context.Context, id int64, update APIKeyUpdate) e
 		} else {
 			sets = append(sets, "allowed_group_ids = "+ph+"::jsonb")
 		}
+	}
+	if update.AutoInjectImageToolSet {
+		sets = append(sets, "auto_inject_image_tool = "+setArg(update.AutoInjectImageTool))
 	}
 	if len(sets) == 0 {
 		return nil

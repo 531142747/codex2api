@@ -617,7 +617,7 @@ func hasStructuredResponsesFormat(body map[string]any) bool {
 	return false
 }
 
-func shouldAutoInjectResponsesImageGenerationTool(body map[string]any) bool {
+func shouldAutoInjectResponsesImageGenerationTool(body map[string]any, cfg responsesPrepareConfig) bool {
 	if len(body) == 0 || hasResponsesImageGenerationTool(body) {
 		return false
 	}
@@ -626,11 +626,16 @@ func shouldAutoInjectResponsesImageGenerationTool(body map[string]any) bool {
 	}
 	if hasTopLevelResponsesImageOptions(body) {
 		return true
+	}
+	// 仅当 API Key 显式开启「自动注入」时，才在无任何图片信号的普通请求里默认注入。
+	// 关闭时纯文本请求不再被强制带上 image_generation 工具/instructions。
+	if cfg.disableAutoImageGenInjection {
+		return false
 	}
 	return !hasStructuredResponsesFormat(body)
 }
 
-func shouldInjectOpenAIResponsesImageGenerationTool(body map[string]any) bool {
+func shouldInjectOpenAIResponsesImageGenerationTool(body map[string]any, cfg responsesPrepareConfig) bool {
 	if len(body) == 0 || hasResponsesImageGenerationTool(body) {
 		return false
 	}
@@ -639,6 +644,9 @@ func shouldInjectOpenAIResponsesImageGenerationTool(body map[string]any) bool {
 	}
 	if hasTopLevelResponsesImageOptions(body) {
 		return true
+	}
+	if cfg.disableAutoImageGenInjection {
+		return false
 	}
 	return isImageOnlyModel(strings.TrimSpace(firstNonEmptyAnyString(body["model"])))
 }
@@ -1308,10 +1316,39 @@ func normalizeResponsesFunctionTools(body map[string]any) bool {
 	return modified
 }
 
+// responsesPrepareConfig 控制 PrepareResponsesBody / PrepareOpenAIResponsesBody 的可选行为。
+// 默认零值 = 旧行为完全不变，新调用方通过 ResponsesPrepareOption 显式开关。
+type responsesPrepareConfig struct {
+	disableAutoImageGenInjection bool
+}
+
+// ResponsesPrepareOption 用于以 functional options 模式调整 Responses 预处理行为。
+type ResponsesPrepareOption func(*responsesPrepareConfig)
+
+// WithDisableAutoImageGenInjection 控制是否在无明确图片信号的普通请求中自动注入 image_generation 工具。
+// disable=true 时：纯文本请求不会自动加上图片工具与 bridge instructions；
+// 但显式带 tool_choice=image_generation、顶层图片参数或已声明 tools 的请求仍然保留注入。
+func WithDisableAutoImageGenInjection(disable bool) ResponsesPrepareOption {
+	return func(c *responsesPrepareConfig) {
+		c.disableAutoImageGenInjection = disable
+	}
+}
+
+func buildResponsesPrepareConfig(opts []ResponsesPrepareOption) responsesPrepareConfig {
+	var cfg responsesPrepareConfig
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	return cfg
+}
+
 // PrepareResponsesBody 将 Responses API 原始请求转换为上游可接受的格式
 // 采用 Unmarshal→map 操作→Marshal 模式，替代逐字段 sjson 操作
 // 返回: (处理后的 body, 展开后的 input JSON 原始文本)
-func PrepareResponsesBody(rawBody []byte) ([]byte, string) {
+func PrepareResponsesBody(rawBody []byte, opts ...ResponsesPrepareOption) ([]byte, string) {
+	cfg := buildResponsesPrepareConfig(opts)
 	var body map[string]any
 	if err := json.Unmarshal(rawBody, &body); err != nil {
 		return rawBody, ""
@@ -1405,7 +1442,7 @@ func PrepareResponsesBody(rawBody []byte) ([]byte, string) {
 			}
 		}
 	}
-	if shouldAutoInjectResponsesImageGenerationTool(body) {
+	if shouldAutoInjectResponsesImageGenerationTool(body, cfg) {
 		ensureResponsesImageGenerationTool(body)
 	}
 	moveTopLevelResponsesImageOptions(body)
@@ -1463,7 +1500,8 @@ func PrepareResponsesBody(rawBody []byte) ([]byte, string) {
 
 // PrepareOpenAIResponsesBody keeps native OpenAI Responses requests compatible
 // without applying Codex-specific fields such as store/include/tool injection.
-func PrepareOpenAIResponsesBody(rawBody []byte) []byte {
+func PrepareOpenAIResponsesBody(rawBody []byte, opts ...ResponsesPrepareOption) []byte {
+	cfg := buildResponsesPrepareConfig(opts)
 	var body map[string]any
 	if err := json.Unmarshal(rawBody, &body); err != nil {
 		return rawBody
@@ -1495,7 +1533,7 @@ func PrepareOpenAIResponsesBody(rawBody []byte) []byte {
 	normalizeResponsesFunctionTools(body)
 	normalizeResponsesContentPartTypes(body)
 	normalizeResponsesInputMessageContent(body)
-	if shouldInjectOpenAIResponsesImageGenerationTool(body) {
+	if shouldInjectOpenAIResponsesImageGenerationTool(body, cfg) {
 		ensureResponsesImageGenerationTool(body)
 	}
 	moveTopLevelResponsesImageOptions(body)
@@ -1510,8 +1548,8 @@ func PrepareOpenAIResponsesBody(rawBody []byte) []byte {
 
 // PrepareCompactResponsesBody 将 /responses/compact 请求转换为上游可接受的格式。
 // 它复用通用 Responses 预处理，但会移除 compact 端点不接受的自动注入字段。
-func PrepareCompactResponsesBody(rawBody []byte) ([]byte, string) {
-	body, expandedInputRaw := PrepareResponsesBody(rawBody)
+func PrepareCompactResponsesBody(rawBody []byte, opts ...ResponsesPrepareOption) ([]byte, string) {
+	body, expandedInputRaw := PrepareResponsesBody(rawBody, opts...)
 	body, _ = sjson.DeleteBytes(body, "include")
 	body, _ = sjson.DeleteBytes(body, "store")
 	body, _ = sjson.DeleteBytes(body, "stream")

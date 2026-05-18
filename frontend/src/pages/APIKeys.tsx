@@ -49,6 +49,7 @@ interface CreateKeyFormState {
   expireMode: ExpireMode;
   expiresAt: string;
   allowedGroupIds: number[];
+  autoInjectImageTool: boolean;
 }
 
 interface EditKeyFormState {
@@ -57,6 +58,7 @@ interface EditKeyFormState {
   expireMode: ExpireMode;
   expiresAt: string;
   allowedGroupIds: number[];
+  autoInjectImageTool: boolean;
 }
 
 const initialCreateForm: CreateKeyFormState = {
@@ -66,6 +68,7 @@ const initialCreateForm: CreateKeyFormState = {
   expireMode: "never",
   expiresAt: "",
   allowedGroupIds: [],
+  autoInjectImageTool: true,
 };
 
 const initialEditForm: EditKeyFormState = {
@@ -74,6 +77,7 @@ const initialEditForm: EditKeyFormState = {
   expireMode: "never",
   expiresAt: "",
   allowedGroupIds: [],
+  autoInjectImageTool: true,
 };
 
 export default function APIKeys() {
@@ -165,6 +169,7 @@ export default function APIKeys() {
         ...(createForm.key.trim() ? { key: createForm.key.trim() } : {}),
         ...(quotaLimit && quotaLimit > 0 ? { quota_limit: quotaLimit } : {}),
         allowed_group_ids: createForm.allowedGroupIds,
+        auto_inject_image_tool: createForm.autoInjectImageTool,
         ...expirationPayload,
       };
 
@@ -264,6 +269,7 @@ export default function APIKeys() {
       expireMode: keyRow.expires_at ? "custom" : "never",
       expiresAt: toDateTimeLocalValue(keyRow.expires_at),
       allowedGroupIds: keyRow.allowed_group_ids ?? [],
+      autoInjectImageTool: keyRow.auto_inject_image_tool ?? true,
     });
   };
 
@@ -292,6 +298,7 @@ export default function APIKeys() {
         name: trimmed,
         quota_limit: quotaLimit,
         allowed_group_ids: editForm.allowedGroupIds,
+        auto_inject_image_tool: editForm.autoInjectImageTool,
         ...buildExpirationPayload(editForm, t, { clearNever: true }),
       });
       showToast(t("apiKeys.keyUpdated"));
@@ -705,6 +712,27 @@ export default function APIKeys() {
                 {t("apiKeys.allowedGroupsHint")}
               </p>
             </FormField>
+
+            <FormField
+              label={t("apiKeys.autoInjectImageToolLabel")}
+              as="div"
+            >
+              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/20 p-3 hover:bg-muted/40">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 cursor-pointer"
+                  checked={createForm.autoInjectImageTool}
+                  onChange={(event) =>
+                    updateCreateForm({
+                      autoInjectImageTool: event.target.checked,
+                    })
+                  }
+                />
+                <span className="text-sm leading-relaxed text-muted-foreground">
+                  {t("apiKeys.autoInjectImageToolHint")}
+                </span>
+              </label>
+            </FormField>
           </form>
         </Modal>
 
@@ -837,6 +865,27 @@ export default function APIKeys() {
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   {t("apiKeys.allowedGroupsHint")}
                 </p>
+              </FormField>
+
+              <FormField
+                label={t("apiKeys.autoInjectImageToolLabel")}
+                as="div"
+              >
+                <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/20 p-3 hover:bg-muted/40">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 cursor-pointer"
+                    checked={editForm.autoInjectImageTool}
+                    onChange={(event) =>
+                      updateEditForm({
+                        autoInjectImageTool: event.target.checked,
+                      })
+                    }
+                  />
+                  <span className="text-sm leading-relaxed text-muted-foreground">
+                    {t("apiKeys.autoInjectImageToolHint")}
+                  </span>
+                </label>
               </FormField>
             </form>
           ) : null}

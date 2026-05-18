@@ -611,7 +611,7 @@ func scanAPIKeyRow(scanner interface {
 }) (*APIKeyRow, error) {
 	row := &APIKeyRow{}
 	var createdAtRaw, expiresAtRaw, allowedGroupsRaw interface{}
-	if err := scanner.Scan(&row.ID, &row.Name, &row.Key, &createdAtRaw, &row.QuotaLimit, &row.QuotaUsed, &expiresAtRaw, &allowedGroupsRaw); err != nil {
+	if err := scanner.Scan(&row.ID, &row.Name, &row.Key, &createdAtRaw, &row.QuotaLimit, &row.QuotaUsed, &expiresAtRaw, &allowedGroupsRaw, &row.AutoInjectImageTool); err != nil {
 		return nil, err
 	}
 	createdAt, err := parseDBTimeValue(createdAtRaw)

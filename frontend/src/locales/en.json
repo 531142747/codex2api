@@ -1207,7 +1207,9 @@
     "relativeExpirationHint": "Saving will set the key to expire {{days}} days from now.",
     "renameKey": "Rename key",
     "keyRenamed": "Key renamed",
-    "renameFailed": "Rename failed"
+    "renameFailed": "Rename failed",
+    "autoInjectImageToolLabel": "Auto-inject image tool",
+    "autoInjectImageToolHint": "When enabled, plain text requests automatically include the image_generation tool and bridge instructions for one-shot image output. When disabled, the tool is only injected when the request explicitly carries image tools or parameters, avoiding pollution of pure text conversations."
   },
   "nav2": {
     "docs": "Docs",

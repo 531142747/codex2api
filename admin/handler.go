@@ -3132,13 +3132,14 @@ func (h *Handler) ListAPIKeys(c *gin.Context) {
 }
 
 type createKeyReq struct {
-	Name            string          `json:"name"`
-	Key             string          `json:"key"`
-	QuotaLimit      *float64        `json:"quota_limit"`
-	Quota           *float64        `json:"quota"`
-	ExpiresAt       string          `json:"expires_at"`
-	ExpiresInDays   *int            `json:"expires_in_days"`
-	AllowedGroupIDs json.RawMessage `json:"allowed_group_ids"`
+	Name                string          `json:"name"`
+	Key                 string          `json:"key"`
+	QuotaLimit          *float64        `json:"quota_limit"`
+	Quota               *float64        `json:"quota"`
+	ExpiresAt           string          `json:"expires_at"`
+	ExpiresInDays       *int            `json:"expires_in_days"`
+	AllowedGroupIDs     json.RawMessage `json:"allowed_group_ids"`
+	AutoInjectImageTool *bool           `json:"auto_inject_image_tool"`
 }
 
 // generateKey 生成随机 API Key
@@ -3230,12 +3231,17 @@ func (h *Handler) CreateAPIKey(c *gin.Context) {
 		}
 	}
 
+	autoInjectImageTool := true
+	if req.AutoInjectImageTool != nil {
+		autoInjectImageTool = *req.AutoInjectImageTool
+	}
 	id, err := h.db.InsertAPIKeyWithOptions(ctx, database.APIKeyInput{
-		Name:            req.Name,
-		Key:             key,
-		QuotaLimit:      quotaLimit,
-		ExpiresAt:       expiresAt,
-		AllowedGroupIDs: allowedGroupIDs.Values,
+		Name:                req.Name,
+		Key:                 key,
+		QuotaLimit:          quotaLimit,
+		ExpiresAt:           expiresAt,
+		AllowedGroupIDs:     allowedGroupIDs.Values,
+		AutoInjectImageTool: autoInjectImageTool,
 	})
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "创建失败: "+err.Error())
@@ -3258,23 +3264,25 @@ func (h *Handler) CreateAPIKey(c *gin.Context) {
 		expiresAtResponse = &formatted
 	}
 	c.JSON(http.StatusOK, createAPIKeyResponse{
-		ID:              id,
-		Key:             key,
-		Name:            req.Name,
-		QuotaLimit:      quotaLimit,
-		QuotaUsed:       0,
-		ExpiresAt:       expiresAtResponse,
-		AllowedGroupIDs: dedupeInt64(allowedGroupIDs.Values),
+		ID:                  id,
+		Key:                 key,
+		Name:                req.Name,
+		QuotaLimit:          quotaLimit,
+		QuotaUsed:           0,
+		ExpiresAt:           expiresAtResponse,
+		AllowedGroupIDs:     dedupeInt64(allowedGroupIDs.Values),
+		AutoInjectImageTool: autoInjectImageTool,
 	})
 }
 
 type updateAPIKeyReq struct {
-	Name            *string         `json:"name"`
-	QuotaLimit      json.RawMessage `json:"quota_limit"`
-	Quota           json.RawMessage `json:"quota"`
-	ExpiresAt       json.RawMessage `json:"expires_at"`
-	ExpiresInDays   *int            `json:"expires_in_days"`
-	AllowedGroupIDs json.RawMessage `json:"allowed_group_ids"`
+	Name                *string         `json:"name"`
+	QuotaLimit          json.RawMessage `json:"quota_limit"`
+	Quota               json.RawMessage `json:"quota"`
+	ExpiresAt           json.RawMessage `json:"expires_at"`
+	ExpiresInDays       *int            `json:"expires_in_days"`
+	AllowedGroupIDs     json.RawMessage `json:"allowed_group_ids"`
+	AutoInjectImageTool *bool           `json:"auto_inject_image_tool"`
 }
 
 func (h *Handler) UpdateAPIKey(c *gin.Context) {
@@ -3366,6 +3374,10 @@ func (h *Handler) UpdateAPIKey(c *gin.Context) {
 	if req.Name != nil {
 		update.Name = *req.Name
 		update.NameSet = true
+	}
+	if req.AutoInjectImageTool != nil {
+		update.AutoInjectImageTool = *req.AutoInjectImageTool
+		update.AutoInjectImageToolSet = true
 	}
 	if err := h.db.UpdateAPIKey(ctx, id, update); err != nil {
 		writeInternalError(c, err)

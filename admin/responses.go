@@ -49,16 +49,17 @@ type apiKeysResponse struct {
 
 // MaskedAPIKeyRow API Key 响应（含脱敏和完整 key）
 type MaskedAPIKeyRow struct {
-	ID              int64   `json:"id"`
-	Name            string  `json:"name"`
-	Key             string  `json:"key"`
-	RawKey          string  `json:"raw_key"`
-	QuotaLimit      float64 `json:"quota_limit"`
-	QuotaUsed       float64 `json:"quota_used"`
-	ExpiresAt       *string `json:"expires_at"`
-	AllowedGroupIDs []int64 `json:"allowed_group_ids"`
-	Status          string  `json:"status"`
-	CreatedAt       string  `json:"created_at"`
+	ID                  int64   `json:"id"`
+	Name                string  `json:"name"`
+	Key                 string  `json:"key"`
+	RawKey              string  `json:"raw_key"`
+	QuotaLimit          float64 `json:"quota_limit"`
+	QuotaUsed           float64 `json:"quota_used"`
+	ExpiresAt           *string `json:"expires_at"`
+	AllowedGroupIDs     []int64 `json:"allowed_group_ids"`
+	AutoInjectImageTool bool    `json:"auto_inject_image_tool"`
+	Status              string  `json:"status"`
+	CreatedAt           string  `json:"created_at"`
 }
 
 // NewMaskedAPIKeyRow 创建 API Key 响应
@@ -75,27 +76,29 @@ func NewMaskedAPIKeyRow(row *database.APIKeyRow) *MaskedAPIKeyRow {
 		status = "quota_exhausted"
 	}
 	return &MaskedAPIKeyRow{
-		ID:              row.ID,
-		Name:            row.Name,
-		Key:             security.MaskAPIKey(row.Key),
-		RawKey:          row.Key,
-		QuotaLimit:      row.QuotaLimit,
-		QuotaUsed:       row.QuotaUsed,
-		ExpiresAt:       expiresAt,
-		AllowedGroupIDs: append([]int64(nil), row.AllowedGroupIDs...),
-		Status:          status,
-		CreatedAt:       row.CreatedAt.Format(time.RFC3339),
+		ID:                  row.ID,
+		Name:                row.Name,
+		Key:                 security.MaskAPIKey(row.Key),
+		RawKey:              row.Key,
+		QuotaLimit:          row.QuotaLimit,
+		QuotaUsed:           row.QuotaUsed,
+		ExpiresAt:           expiresAt,
+		AllowedGroupIDs:     append([]int64(nil), row.AllowedGroupIDs...),
+		AutoInjectImageTool: row.AutoInjectImageTool,
+		Status:              status,
+		CreatedAt:           row.CreatedAt.Format(time.RFC3339),
 	}
 }
 
 type createAPIKeyResponse struct {
-	ID              int64   `json:"id"`
-	Key             string  `json:"key"`
-	Name            string  `json:"name"`
-	QuotaLimit      float64 `json:"quota_limit"`
-	QuotaUsed       float64 `json:"quota_used"`
-	ExpiresAt       *string `json:"expires_at"`
-	AllowedGroupIDs []int64 `json:"allowed_group_ids"`
+	ID                  int64   `json:"id"`
+	Key                 string  `json:"key"`
+	Name                string  `json:"name"`
+	QuotaLimit          float64 `json:"quota_limit"`
+	QuotaUsed           float64 `json:"quota_used"`
+	ExpiresAt           *string `json:"expires_at"`
+	AllowedGroupIDs     []int64 `json:"allowed_group_ids"`
+	AutoInjectImageTool bool    `json:"auto_inject_image_tool"`
 }
 
 type opsOverviewResponse struct {

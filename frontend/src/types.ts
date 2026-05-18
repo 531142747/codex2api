@@ -617,6 +617,7 @@ export interface APIKeyRow {
   expires_at?: ISODateString | null
   status?: 'active' | 'expired' | 'quota_exhausted'
   allowed_group_ids?: number[]
+  auto_inject_image_tool?: boolean
   created_at: ISODateString
 }
 
@@ -630,6 +631,7 @@ export interface CreateAPIKeyRequest {
   expires_at?: string
   expires_in_days?: number
   allowed_group_ids?: number[]
+  auto_inject_image_tool?: boolean
 }
 
 export interface UpdateAPIKeyRequest {
@@ -639,6 +641,7 @@ export interface UpdateAPIKeyRequest {
   expires_at?: string | null
   expires_in_days?: number
   allowed_group_ids?: number[]
+  auto_inject_image_tool?: boolean
 }
 
 export interface CreateAPIKeyResponse {
@@ -649,6 +652,7 @@ export interface CreateAPIKeyResponse {
   quota_used: number
   expires_at?: ISODateString | null
   allowed_group_ids?: number[]
+  auto_inject_image_tool?: boolean
 }
 
 export interface ImagePromptTemplate {

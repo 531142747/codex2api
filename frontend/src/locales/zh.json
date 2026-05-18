@@ -1207,7 +1207,9 @@
     "relativeExpirationHint": "保存后将从现在起 {{days}} 天后过期。",
     "renameKey": "重命名密钥",
     "keyRenamed": "密钥已重命名",
-    "renameFailed": "重命名失败"
+    "renameFailed": "重命名失败",
+    "autoInjectImageToolLabel": "自动注入图片工具",
+    "autoInjectImageToolHint": "开启时，普通文本请求会自动追加 image_generation 工具与图片生成提示，便于一键出图。关闭后，仅当请求显式带图片工具/参数时才会注入，避免污染纯文本对话。"
   },
   "nav2": {
     "docs": "使用文档",

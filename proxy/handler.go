@@ -43,9 +43,10 @@ const (
 )
 
 type apiKeyRuntimeRecord struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                  int64     `json:"id"`
+	Name                string    `json:"name"`
+	AutoInjectImageTool bool      `json:"auto_inject_image_tool"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 type apiKeyCountRuntimeRecord struct {
@@ -138,7 +139,33 @@ const (
 	contextAPIKeyID     = "apiKeyID"
 	contextAPIKeyName   = "apiKeyName"
 	contextAPIKeyMasked = "apiKeyMasked"
+	contextAPIKeyRow    = "apiKeyRow"
 )
+
+// requestAPIKeyRow 从 gin.Context 取出鉴权命中的 APIKeyRow（可能为 nil，例如未经鉴权或匿名模式）。
+func requestAPIKeyRow(c *gin.Context) *database.APIKeyRow {
+	if c == nil {
+		return nil
+	}
+	if value, exists := c.Get(contextAPIKeyRow); exists && value != nil {
+		if row, ok := value.(*database.APIKeyRow); ok {
+			return row
+		}
+	}
+	return nil
+}
+
+// responsesPrepareOptionsFor 根据当前请求绑定的 API Key，生成 Responses 预处理选项。
+// 当 Key 显式关闭「自动注入图片工具」时，传入 WithDisableAutoImageGenInjection(true)，
+// 普通文本请求将不再被强制带上 image_generation 工具与 bridge instructions。
+// 未鉴权 / 匿名 / 配置文件 Key 默认保持开启（向后兼容旧行为）。
+func responsesPrepareOptionsFor(c *gin.Context) []ResponsesPrepareOption {
+	row := requestAPIKeyRow(c)
+	if row != nil && !row.AutoInjectImageTool {
+		return []ResponsesPrepareOption{WithDisableAutoImageGenInjection(true)}
+	}
+	return nil
+}
 
 func requestAPIKeyID(c *gin.Context) int64 {
 	if c == nil {
@@ -347,9 +374,10 @@ func (h *Handler) resolveAPIKey(key string) (*database.APIKeyRow, bool) {
 	}
 	if h.configKeys[key] {
 		return &database.APIKeyRow{
-			ID:   0,
-			Name: "config",
-			Key:  key,
+			ID:                  0,
+			Name:                "config",
+			Key:                 key,
+			AutoInjectImageTool: true,
 		}, true
 	}
 	if row, ok := h.resolveAPIKeyFromRuntimeCache(key); ok {
@@ -396,10 +424,11 @@ func (h *Handler) resolveAPIKeyFromRuntimeCache(key string) (*database.APIKeyRow
 		return nil, false
 	}
 	return &database.APIKeyRow{
-		ID:        record.ID,
-		Name:      record.Name,
-		Key:       key,
-		CreatedAt: record.CreatedAt,
+		ID:                  record.ID,
+		Name:                record.Name,
+		Key:                 key,
+		AutoInjectImageTool: record.AutoInjectImageTool,
+		CreatedAt:           record.CreatedAt,
 	}, true
 }
 
@@ -411,9 +440,10 @@ func (h *Handler) setAPIKeyRuntimeCache(row *database.APIKeyRow) {
 		return
 	}
 	record := apiKeyRuntimeRecord{
-		ID:        row.ID,
-		Name:      row.Name,
-		CreatedAt: row.CreatedAt,
+		ID:                  row.ID,
+		Name:                row.Name,
+		AutoInjectImageTool: row.AutoInjectImageTool,
+		CreatedAt:           row.CreatedAt,
 	}
 	payload, err := json.Marshal(record)
 	if err != nil {
@@ -979,6 +1009,7 @@ func (h *Handler) authMiddleware() gin.HandlerFunc {
 		c.Set(contextAPIKeyID, apiKeyRow.ID)
 		c.Set(contextAPIKeyName, strings.TrimSpace(apiKeyRow.Name))
 		c.Set(contextAPIKeyMasked, security.MaskAPIKey(apiKeyRow.Key))
+		c.Set(contextAPIKeyRow, apiKeyRow)
 		c.Set("apiKey", key)
 		c.Next()
 	}
@@ -1167,8 +1198,9 @@ func (h *Handler) Responses(c *gin.Context) {
 	}
 
 	// 2. 准备上游请求体（Unmarshal→map→Marshal，一次序列化）
-	codexBody, expandedInputRaw := PrepareResponsesBody(rawBody)
-	openAIResponsesBody := PrepareOpenAIResponsesBody(rawBody)
+	prepareOpts := responsesPrepareOptionsFor(c)
+	codexBody, expandedInputRaw := PrepareResponsesBody(rawBody, prepareOpts...)
+	openAIResponsesBody := PrepareOpenAIResponsesBody(rawBody, prepareOpts...)
 	if err := validateResponsesImageGenerationSizes(codexBody); err != nil {
 		api.SendError(c, api.NewAPIError(api.ErrCodeInvalidParameter, err.Error(), api.ErrorTypeInvalidRequest))
 		return
@@ -1274,7 +1306,7 @@ func (h *Handler) Responses(c *gin.Context) {
 						invalidEncryptedContentRetried = true
 						if rawChanged {
 							rawBody = strippedRawBody
-							openAIResponsesBody = PrepareOpenAIResponsesBody(rawBody)
+							openAIResponsesBody = PrepareOpenAIResponsesBody(rawBody, prepareOpts...)
 						}
 						if codexChanged {
 							codexBody = strippedCodexBody
@@ -1537,7 +1569,7 @@ func (h *Handler) Responses(c *gin.Context) {
 					invalidEncryptedContentRetried = true
 					if rawChanged {
 						rawBody = strippedRawBody
-						openAIResponsesBody = PrepareOpenAIResponsesBody(rawBody)
+						openAIResponsesBody = PrepareOpenAIResponsesBody(rawBody, prepareOpts...)
 					}
 					if codexChanged {
 						codexBody = strippedCodexBody
@@ -1889,7 +1921,7 @@ func (h *Handler) ResponsesCompact(c *gin.Context) {
 	rawBody, _ = sjson.SetBytes(rawBody, "stream", false)
 
 	// 准备上游请求体
-	codexBody, _ := PrepareCompactResponsesBody(rawBody)
+	codexBody, _ := PrepareCompactResponsesBody(rawBody, responsesPrepareOptionsFor(c)...)
 	if err := validateResponsesImageGenerationSizes(codexBody); err != nil {
 		api.SendError(c, api.NewAPIError(api.ErrCodeInvalidParameter, err.Error(), api.ErrorTypeInvalidRequest))
 		return

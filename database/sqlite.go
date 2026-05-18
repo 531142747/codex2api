@@ -82,6 +82,7 @@ func (db *DB) migrateSQLite(ctx context.Context) error {
 			quota_used REAL DEFAULT 0,
 			allowed_group_ids TEXT DEFAULT '[]',
 			expires_at TIMESTAMP NULL,
+			auto_inject_image_tool INTEGER NOT NULL DEFAULT 1,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS account_groups (
@@ -287,6 +288,7 @@ func (db *DB) migrateSQLite(ctx context.Context) error {
 		{"api_keys", "quota_used", "REAL DEFAULT 0"},
 		{"api_keys", "allowed_group_ids", "TEXT DEFAULT '[]'"},
 		{"api_keys", "expires_at", "TIMESTAMP NULL"},
+		{"api_keys", "auto_inject_image_tool", "INTEGER NOT NULL DEFAULT 1"},
 		{"account_groups", "description", "TEXT DEFAULT ''"},
 		{"account_groups", "color", "TEXT DEFAULT ''"},
 		{"account_groups", "sort_order", "INTEGER DEFAULT 0"},
